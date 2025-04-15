@@ -1,3 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Color Route Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+  <style>
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px #999;
+      font-family: sans-serif;
+      font-size: 14px;
+      max-width: 80%;
+    }
+  </style>
+</head>
+<body>
+
+<div id="info">Locating you... ⏳</div>
+<div id="map"></div>
+
+<!-- Leaflet Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
 <script>
 const map = L.map('map').setView([0, 0], 20); // Zoom level 20 for high detail
 let userMarker, activePin, pinGridLayer;
@@ -75,3 +111,7 @@ map.on('moveend', () => {
   }
 });
 </script>
+
+
+</body>
+</html>
