@@ -1,119 +1,77 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Color Route Map</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
-  <style>
-    #map {
-      height: 100vh;
-      width: 100%;
-    }
-    #info {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 1000;
-      background: white;
-      padding: 10px;
-      border-radius: 8px;
-      box-shadow: 0 0 5px #999;
-      font-family: sans-serif;
-      font-size: 14px;
-      max-width: 80%;
-    }
-  </style>
-</head>
-<body>
-
-<div id="info">Locating you... ⏳</div>
-<div id="map"></div>
-
-<!-- Leaflet Scripts -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
-
 <script>
-  const map = L.map('map').setView([0, 0], 13);
-  let userMarker, pinMarker, routingControl;
+const map = L.map('map').setView([0, 0], 20); // Zoom level 20 for high detail
+let userMarker, activePin, pinGridLayer;
+const pinSizeDegrees = 0.00001;  // ~1 cm in degrees (approx.)
 
-  // 🎨 Color Palette for Routes
-  const routeColors = ['#ff6b6b', '#6bc5ff', '#6bff95', '#ffc36b', '#d36bff', '#ff6bd6'];
-  let colorIndex = 0;
+// Load map
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 22,
+}).addTo(map);
 
-  function getNextColor() {
-    const color = routeColors[colorIndex % routeColors.length];
-    colorIndex++;
-    return color;
+// Detect user location
+navigator.geolocation.getCurrentPosition(pos => {
+  const lat = pos.coords.latitude;
+  const lng = pos.coords.longitude;
+  map.setView([lat, lng], 20);
+  userMarker = L.circleMarker([lat, lng], {
+    radius: 6,
+    fillColor: '#00c853',
+    color: '#00c853',
+    fillOpacity: 1
+  }).addTo(map).bindPopup("You are here").openPopup();
+}, () => {
+  alert("Location access denied.");
+});
+
+// Create a transparent pin grid
+function drawPinGrid() {
+  if (pinGridLayer) {
+    map.removeLayer(pinGridLayer);
   }
 
-  // Load map tiles
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18,
-  }).addTo(map);
+  const bounds = map.getBounds();
+  const pins = [];
 
-  // Detect GPS location
-  navigator.geolocation.getCurrentPosition(position => {
-    const lat = position.coords.latitude;
-    const lng = position.coords.longitude;
-    const userLatLng = [lat, lng];
+  const startLat = bounds.getSouth();
+  const endLat = bounds.getNorth();
+  const startLng = bounds.getWest();
+  const endLng = bounds.getEast();
 
-    userMarker = L.marker(userLatLng).addTo(map).bindPopup('You are here').openPopup();
-    map.setView(userLatLng, 16);
-    document.getElementById('info').innerText = `📍 Your Location: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  }, () => {
-    document.getElementById('info').innerText = '⚠️ Unable to fetch GPS location.';
-  });
-
-  // Reverse Geocoding
-  function getAddress(lat, lng) {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`;
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        const address = data.display_name || 'Address not found';
-        document.getElementById('info').innerHTML =
-          `<strong>🏁 Destination:</strong> ${address}<br>
-           <strong>📍 Coordinates:</strong> ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      });
+  for (let lat = startLat; lat <= endLat; lat += pinSizeDegrees) {
+    for (let lng = startLng; lng <= endLng; lng += pinSizeDegrees) {
+      pins.push(L.circleMarker([lat, lng], {
+        radius: 1,
+        fillOpacity: 0.01, // Transparent
+        stroke: false
+      }));
+    }
   }
 
-  // Handle Pin Drop
-  map.on('click', function (e) {
-    const { lat, lng } = e.latlng;
+  pinGridLayer = L.layerGroup(pins).addTo(map);
+}
 
-    if (pinMarker) {
-      pinMarker.setLatLng(e.latlng);
-    } else {
-      pinMarker = L.marker(e.latlng).addTo(map).bindPopup('Delivery Point').openPopup();
-    }
+// Handle active pin selection
+map.on('click', function (e) {
+  const { lat, lng } = e.latlng;
 
-    getAddress(lat, lng);
+  if (activePin) {
+    map.removeLayer(activePin);
+  }
 
-    // Remove old route
-    if (routingControl) {
-      map.removeControl(routingControl);
-    }
+  activePin = L.circleMarker([lat, lng], {
+    radius: 6,
+    fillColor: '#2962ff',
+    color: '#2962ff',
+    fillOpacity: 1
+  }).addTo(map).bindPopup("Destination").openPopup();
+});
 
-    // Draw colorful route from user → pin
-    if (userMarker) {
-      routingControl = L.Routing.control({
-        waypoints: [
-          userMarker.getLatLng(),
-          L.latLng(lat, lng)
-        ],
-        lineOptions: {
-          styles: [{ color: getNextColor(), weight: 6, opacity: 0.9 }]
-        },
-        routeWhileDragging: false,
-        draggableWaypoints: false,
-        addWaypoints: false,
-        createMarker: () => null
-      }).addTo(map);
-    }
-  });
+// Redraw grid on move
+map.on('moveend', () => {
+  if (map.getZoom() >= 19) {
+    drawPinGrid();
+  } else if (pinGridLayer) {
+    map.removeLayer(pinGridLayer);
+  }
+});
 </script>
-
-</body>
-</html>
